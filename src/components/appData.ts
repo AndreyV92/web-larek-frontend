@@ -1,28 +1,34 @@
-import { EventEmitter } from './base/events';
-import { Model } from './base/modal';
 import {
-	DeliveryInfo,
-	ContactInfo,
-	OrderPayload,
-	AppState as AppStateType,
 	ProductData,
+	OrderPayload,
 	OrderFormErrors,
+	ContactInfo,
+	DeliveryInfo,
+	AppState as AppStateType,
 } from '../types';
+import { EventEmitter } from './base/events';
+
+import { Model } from './base/modal';
+
+//
 export interface CatalogChangeEvent {
 	products: ProductData[];
 }
 
+//
+
 export class AppState extends Model<AppStateType> {
-	orderError: OrderFormErrors = {};
-	order: Omit<OrderPayload, 'items' | 'total'> = {
-		phone: '',
-		email: '',
-		payment: '',
-		address: '',
-	};
-	preview: string | null = null;
-	catalog: ProductData[] = [];
 	basket: string[] = [];
+	preview: string | null = null;
+	order: Omit<OrderPayload, 'items' | 'total'> = {
+		address: '',
+		payment: '',
+
+		email: '',
+		phone: '',
+	};
+	orderError: OrderFormErrors = {};
+	catalog: ProductData[] = [];
 
 	constructor(
 		initialState: Partial<AppStateType>,
@@ -30,51 +36,48 @@ export class AppState extends Model<AppStateType> {
 	) {
 		super(initialState, events);
 		this.preview = initialState.preview || null;
-		this.basket = [];
 		this.catalog = initialState.products || [];
+		this.basket = [];
 	}
 	clearBasket(): void {
 		this.basket = [];
 		this.updateBasket();
 	}
-	removeBasket(productId: string): void {
-		const index = this.basket.indexOf(productId);
-		if (index !== -1) {
-			this.basket.splice(index, 1);
-			this.updateBasket();
-		}
-	}
+
 	addBasket(productId: string): void {
 		if (!this.basket.includes(productId)) {
 			this.basket.push(productId);
 			this.updateBasket();
 		}
 	}
-
+	getBasketProducts(): ProductData[] {
+		return this.catalog.filter((item) => this.basket.includes(item.id));
+	}
 	private updateBasket(): void {
 		this.events.emit('basket:change', {
 			products: this.getBasketProducts(),
 			total: this.getTotal(),
 		});
 	}
-
 	getTotal(): number {
 		return this.getBasketProducts().reduce(
 			(sum, product) => sum + (product.price || 0),
 			0
 		);
 	}
-	getBasketProducts(): ProductData[] {
-		return this.catalog.filter((item) => this.basket.includes(item.id));
-	}
 
-	setOrderField(field: keyof DeliveryInfo, value: string): void {
-		this.order[field] = value;
-		this.validateOrder();
-	}
 	setCatalog(products: ProductData[]): void {
 		this.catalog = products;
 		this.events.emit('items:changed', { products: this.catalog });
+	}
+	setContactField(field: keyof ContactInfo, value: string): void {
+		this.order[field] = value;
+		this.validateContact();
+	}
+	contactReset(): void {
+		this.order.email = '';
+		this.order.phone = '';
+		this.events.emit('contact:reset', this.order);
 	}
 	validateContact(): boolean {
 		const errors: OrderFormErrors = {};
@@ -89,7 +92,17 @@ export class AppState extends Model<AppStateType> {
 		this.events.emit('contactsOrderFormErrors:change', errors);
 		return Object.keys(errors).length === 0;
 	}
-
+	removeBasket(productId: string): void {
+		const index = this.basket.indexOf(productId);
+		if (index !== -1) {
+			this.basket.splice(index, 1);
+			this.updateBasket();
+		}
+	}
+	setOrderField(field: keyof DeliveryInfo, value: string): void {
+		this.order[field] = value;
+		this.validateOrder();
+	}
 	validateOrder(): boolean {
 		const errors: OrderFormErrors = {};
 		console.log(this);
@@ -104,9 +117,11 @@ export class AppState extends Model<AppStateType> {
 		return Object.keys(errors).length === 0;
 	}
 
-	setContactField(field: keyof ContactInfo, value: string): void {
-		this.order[field] = value;
-		this.validateContact();
+	orderReset(): void {
+		console.log(this.order);
+		this.order.payment = '';
+		this.order.address = '';
+		this.events.emit('order:reset', this.order);
 	}
 	setPreview(product: ProductData): void {
 		this.preview = product.id;
@@ -114,18 +129,5 @@ export class AppState extends Model<AppStateType> {
 	}
 	isSubmitDisabled(): boolean {
 		return !this.validateOrder() || !this.validateContact();
-	}
-
-	contactReset(): void {
-		this.order.phone = '';
-		this.order.email = '';
-
-		this.events.emit('contact:reset', this.order);
-	}
-	orderReset(): void {
-		this.order.address = '';
-		this.order.payment = '';
-
-		this.events.emit('order:reset', this.order);
 	}
 }

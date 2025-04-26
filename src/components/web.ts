@@ -1,15 +1,15 @@
-import { Api as BaseApi } from './base/api';
 import {
 	ApiResponseList as ProductListResponse,
-	OrderPayload as OrderPayload,
 	ProductData as ProductData,
 	OrderResponse as OrderResponse,
+	OrderPayload as OrderPayload,
 } from '../types';
+import { Api as BaseApi } from './base/api';
 
 export interface AppApiInterface {
-	processOrderSubmission: (payload: OrderPayload) => Promise<OrderResponse>;
-
 	fetchProductList: () => Promise<ProductData[]>;
+
+	processOrderSubmission: (payload: OrderPayload) => Promise<OrderResponse>;
 }
 
 export class AppApi extends BaseApi implements AppApiInterface {
@@ -24,25 +24,17 @@ export class AppApi extends BaseApi implements AppApiInterface {
 		this.contentDeliveryUrl = contentDeliveryUrl;
 	}
 
-	processOrderSubmission(payload: OrderPayload): Promise<OrderResponse> {
-		return this.post('/order', payload)
-			.then((response: OrderResponse) => response)
-			.catch((err) => {
-				console.error('Error submitting order:', err);
-				throw new Error('Order submission failed.');
-			});
-	}
 	fetchProductList(): Promise<ProductData[]> {
-		return this.get('/product')
-			.then((data: ProductListResponse<ProductData>) =>
-				data.items.map((item) => ({
-					...item,
-					image: `${this.contentDeliveryUrl}${item.image}`,
-				}))
-			)
-			.catch((err) => {
-				console.error('Error fetching product list:', err);
-				throw new Error('Failed to retrieve product list.');
-			});
+		return this.get('/product').then((data: ProductListResponse<ProductData>) =>
+			data.items.map((item) => ({
+				...item,
+				image: `${this.contentDeliveryUrl}${item.image}`,
+			}))
+		);
+	}
+	processOrderSubmission(payload: OrderPayload): Promise<OrderResponse> {
+		return this.post('/order', payload).then(
+			(response: OrderResponse) => response
+		);
 	}
 }

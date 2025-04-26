@@ -1,8 +1,8 @@
-import { ensureElement } from '../utils/utils';
 import { settings } from '../utils/constants';
-
 import { ProductData } from '../types';
+
 import { Component } from './base/component';
+import { ensureElement } from '../utils/utils';
 
 interface ICardEventHandlers {
 	onRemoveFromBasket?: (item: ProductData) => void;
@@ -15,16 +15,16 @@ interface ICard extends ProductData {
 }
 
 export class Card extends Component<ICard> {
-	private _productItem: ProductData;
-	private _isAddedToBasket: boolean;
-	private _identifierCard?: HTMLElement;
-
-	private _categoryElement?: HTMLElement;
-	private _priceElement: HTMLElement;
-	private _descriptionElement?: HTMLElement;
-	private _imageElement?: HTMLImageElement;
 	private _titleElement: HTMLElement;
+	private _identifierCard?: HTMLElement;
+	private _productItem: ProductData;
+	private _priceElement: HTMLElement;
+
 	private _buttonElement?: HTMLButtonElement;
+	private _imageElement?: HTMLImageElement;
+	private _categoryElement?: HTMLElement;
+	private _isAddedToBasket: boolean;
+	private _descriptionElement?: HTMLElement;
 
 	constructor(
 		containerElement: HTMLElement,
@@ -32,28 +32,28 @@ export class Card extends Component<ICard> {
 		actionHandlers: ICardEventHandlers
 	) {
 		super(containerElement);
-		this._isAddedToBasket = false;
-		this._productItem = product;
-
-		this._imageElement = containerElement.querySelector('.card__image');
-		this._titleElement = ensureElement<HTMLElement>(
-			'.card__title',
-			containerElement
-		);
 		this._identifierCard = containerElement.querySelector(
 			'.basket__item-index'
 		);
-		this._descriptionElement = containerElement.querySelector('.card__text');
-
-		this._categoryElement = containerElement.querySelector('.card__category');
 		this._priceElement = ensureElement<HTMLElement>(
 			'.card__price',
 			containerElement
 		);
+		this._categoryElement = containerElement.querySelector('.card__category');
+
 		this._buttonElement =
 			containerElement.querySelector<HTMLButtonElement>('.card__button');
+		this._productItem = product;
+		this._isAddedToBasket = false;
+		this._titleElement = ensureElement<HTMLElement>(
+			'.card__title',
+			containerElement
+		);
 
 		this._initializeEventHandlers(actionHandlers);
+		this._descriptionElement = containerElement.querySelector('.card__text');
+		this._imageElement = containerElement.querySelector('.card__image');
+
 		this._renderProduct(product);
 	}
 
@@ -65,7 +65,11 @@ export class Card extends Component<ICard> {
 		}
 		this.updateButtonState(!this._isAddedToBasket);
 	}
-
+	public setIndex(index: number): void {
+		if (this._identifierCard) {
+			this.setText(this._identifierCard, (index + 1).toString());
+		}
+	}
 	private _renderProduct(product: ProductData): void {
 		this.cardId = product.id;
 		this.cardTitle = product.title;
@@ -73,6 +77,54 @@ export class Card extends Component<ICard> {
 		this.cardDescription = product.description;
 		this.cardCategory = product.category;
 		this.cardPrice = product.price || 0;
+	}
+	private _initializeEventHandlers(actions: ICardEventHandlers): void {
+		if (actions.onClick) {
+			this.addEventHandler(this.container, 'click', actions.onClick);
+		}
+
+		if (this._buttonElement) {
+			this.addEventHandler(this._buttonElement, 'click', (event) => {
+				event.stopPropagation();
+				this._handleBasketToggle(actions);
+			});
+		}
+
+		const deleteButton = this.getElement<HTMLButtonElement>(
+			'.basket__item-delete'
+		);
+		if (deleteButton && actions.onRemoveFromBasket) {
+			this.addEventHandler(deleteButton, 'click', (event) => {
+				event.stopPropagation();
+				actions.onRemoveFromBasket?.(this._productItem);
+			});
+		}
+	}
+	set cardImage(value: string) {
+		this.setImage(this._imageElement, value, this.cardTitle);
+	}
+	set cardId(value: string) {
+		this.setAttribute(this.container, 'data-id', value);
+	}
+	get cardId(): string {
+		return this.container.dataset.id || '';
+	}
+	set cardTitle(value: string) {
+		this.setText(this._titleElement, value);
+	}
+	set cardPrice(value: number) {
+		this.setText(this._priceElement, value ? `${value} синапсов` : 'Бесценно');
+		this._disableButtonForFreeItems(value);
+	}
+	set cardCategory(value: string) {
+		if (this._categoryElement) {
+			this.setText(this._categoryElement, value);
+			this.toggleClass(this._categoryElement, settings[value] || '', true);
+		}
+	}
+
+	set cardDescription(value: string) {
+		this.setText(this._descriptionElement, value);
 	}
 
 	public updateButtonState(isInBasket: boolean): void {
@@ -84,17 +136,6 @@ export class Card extends Component<ICard> {
 			);
 		}
 	}
-	private _initializeEventHandlers(actions: ICardEventHandlers): void {
-		if (actions.onClick) {
-			this.addEventHandler(this.container, 'click', actions.onClick);
-		}
-		if (this._buttonElement) {
-			this.addEventHandler(this._buttonElement, 'click', (event) => {
-				event.stopPropagation();
-				this._handleBasketToggle(actions);
-			});
-		}
-	}
 	private _disableButtonForFreeItems(price: number): void {
 		if (!price && this._buttonElement) {
 			this.setDisabled(this._buttonElement, true);
@@ -102,36 +143,6 @@ export class Card extends Component<ICard> {
 			this.setDisabled(this._buttonElement, false);
 		}
 	}
-
-	set cardImage(value: string) {
-		this.setImage(this._imageElement, value, this.cardTitle);
-	}
-
-	set cardTitle(value: string) {
-		this.setText(this._titleElement, value);
-	}
-	get cardId(): string {
-		return this.container.dataset.id || '';
-	}
-	set cardCategory(value: string) {
-		if (this._categoryElement) {
-			this.setText(this._categoryElement, value);
-			this.toggleClass(this._categoryElement, settings[value] || '', true);
-		}
-	}
-	set cardId(value: string) {
-		this.setAttribute(this.container, 'data-id', value);
-	}
-
-	set cardDescription(value: string) {
-		this.setText(this._descriptionElement, value);
-	}
-
-	set cardPrice(value: number) {
-		this.setText(this._priceElement, value ? `${value} синапсов` : 'Бесценно');
-		this._disableButtonForFreeItems(value);
-	}
-
 	getContainer(): HTMLElement {
 		return this.container;
 	}

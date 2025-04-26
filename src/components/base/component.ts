@@ -1,5 +1,6 @@
 export abstract class Component<T> {
 	protected constructor(protected readonly container: HTMLElement) {}
+	
 	protected setText(element: HTMLElement | null, value: unknown): void {
 		if (element) {
 			element.textContent = String(value ?? '');
@@ -14,33 +15,19 @@ export abstract class Component<T> {
 			element.classList.toggle(className, force);
 		}
 	}
-	protected setVisible(element: HTMLElement | null): void {
-		if (element) {
-			element.style.removeProperty('display');
-		}
-	}
 
-	setDisabled(element: HTMLElement | null, state: boolean): void {
-		if (element) {
-			element.toggleAttribute('disabled', state);
-		}
-	}
 
 	protected setHidden(element: HTMLElement | null): void {
 		if (element) {
 			element.style.display = 'none';
 		}
 	}
-
-	protected setAttribute(
-		element: HTMLElement | null,
-		attr: string,
-		value: string
-	): void {
+	setDisabled(element: HTMLElement | null, state: boolean): void {
 		if (element) {
-			element.setAttribute(attr, value);
+			element.toggleAttribute('disabled', state);
 		}
 	}
+
 	protected setImage(
 		element: HTMLImageElement | null,
 		src: string,
@@ -51,7 +38,28 @@ export abstract class Component<T> {
 			if (alt) element.alt = alt;
 		}
 	}
+	protected setVisible(element: HTMLElement | null): void {
+		if (element) {
+			element.style.removeProperty('display');
+		}
+	}
 
+
+
+	protected removeAttribute(element: HTMLElement | null, attr: string): void {
+		if (element) {
+			element.removeAttribute(attr);
+		}
+	}
+	protected setAttribute(
+		element: HTMLElement | null,
+		attr: string,
+		value: string
+	): void {
+		if (element) {
+			element.setAttribute(attr, value);
+		}
+	}
 	protected addEventHandler<K extends keyof HTMLElementEventMap>(
 		element: HTMLElement | null,
 		event: K,
@@ -61,11 +69,15 @@ export abstract class Component<T> {
 			element.addEventListener(event, callback);
 		}
 	}
-	protected removeAttribute(element: HTMLElement | null, attr: string): void {
+	protected setStyle(
+		element: HTMLElement | null,
+		styles: Partial<CSSStyleDeclaration>
+	): void {
 		if (element) {
-			element.removeAttribute(attr);
+			Object.assign(element.style, styles);
 		}
 	}
+
 
 	protected removeEventHandler<K extends keyof HTMLElementEventMap>(
 		element: HTMLElement | null,
@@ -76,15 +88,17 @@ export abstract class Component<T> {
 			element.removeEventListener(event, callback);
 		}
 	}
-
-	protected setStyle(
-		element: HTMLElement | null,
-		styles: Partial<CSSStyleDeclaration>
-	): void {
-		if (element) {
-			Object.assign(element.style, styles);
-		}
+	protected getElement<E extends Element = HTMLElement>(
+		selector: string
+	): E | null {
+		return this.container.querySelector<E>(selector);
 	}
+	protected getAllElements<E extends Element = HTMLElement>(
+		selector: string
+	): E[] {
+		return Array.from(this.container.querySelectorAll<E>(selector));
+	}	
+
 
 	render(data?: Partial<T>): HTMLElement {
 		if (data) {

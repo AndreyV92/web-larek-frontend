@@ -1,33 +1,33 @@
 import '../scss/styles.scss';
-import { Basket } from './basket';
-import { ensureElement, cloneTemplate } from '../utils/utils';
-import { ProductData, DeliveryInfo, ContactInfo } from '../types';
+
+import { EventEmitter } from './base/events';
 import { Card } from './card';
-import { Order, Contact } from './order';
-import { Modal } from './modal';
-import { API_URL, CDN_URL } from '../utils/constants';
 import { AppApi } from './web';
 import { CatalogChangeEvent, AppState } from './appData';
 import { Page } from './page';
+import { ensureElement, cloneTemplate } from '../utils/utils';
+import { ProductData, DeliveryInfo, ContactInfo } from '../types';
 
-import { EventEmitter } from './base/events';
-
+import { Basket } from './basket';
 import { Success } from './succes';
+import { Order, Contact } from './order';
+import { Modal } from './modal';
+
+import { API_URL, CDN_URL } from '../utils/constants';
 
 export class App {
-	private appData: AppState;
-	private contacts: Contact;
 	private api: AppApi;
 	private events: EventEmitter;
-	private page: Page;
 	private modal: Modal;
-
-	private successModal: Success;
-
 	private basket: Basket;
+	private contacts: Contact;
+	private successModal: Success;
+	private page: Page;
 	private order: Order;
+	private appData: AppState;
 
 	constructor() {
+		this.api = new AppApi(CDN_URL, API_URL);
 		this.events = new EventEmitter();
 		this.page = new Page(document.body, this.events);
 		this.modal = new Modal(
@@ -35,49 +35,32 @@ export class App {
 			this.events
 		);
 		this.appData = new AppState({}, this.events);
-		this.contacts = new Contact(
-			cloneTemplate(ensureElement<HTMLTemplateElement>('#contacts')),
-			this.events
-		);
-
-		this.api = new AppApi(CDN_URL, API_URL);
 
 		this.order = new Order(
 			cloneTemplate(ensureElement<HTMLTemplateElement>('#order')),
 			this.events
 		);
-
 		this.basket = new Basket(
 			cloneTemplate(ensureElement<HTMLTemplateElement>('#basket')),
 			this.events
 		);
-		this.successModal = this.createSuccessModalInstance();
 
+		this.successModal = this.createSuccessModalInstance();
+		this.contacts = new Contact(
+			cloneTemplate(ensureElement<HTMLTemplateElement>('#contacts')),
+			this.events
+		);
 		this.initialize();
 	}
 
 	private initialize(): void {
-		this.setupEventHandlers();
 		this.fetchProductData();
-	}
-
-	private createSuccessModalInstance() {
-		return new Success(
-			cloneTemplate(ensureElement<HTMLTemplateElement>('#success')),
-			{
-				onSuccessClick: () => {
-					this.appData.contactReset();
-					this.events.emit('basket:change');
-					this.appData.orderReset();
-					this.modal.closeModal();
-				},
-			}
-		);
+		this.setupEventHandlers();
 	}
 
 	private setupEventHandlers(): void {
-		this.events.onAll(({ eventName, data }) => console.log(eventName, data));
-
+		this.events.on('contacts:submit', () => this.processOrderSubmission());
+		this.events.on('basket:open', () => this.displayBasket());
 		this.events.on<CatalogChangeEvent>(
 			'items:changed',
 			this.refreshCatalog.bind(this)
@@ -89,6 +72,15 @@ export class App {
 				console.log(`Выбран способ оплаты: ${value}`);
 			}
 		);
+		this.events.on('basket:change', this.refreshBasketView.bind(this));
+		this.events.on('order:submit', () => this.displayContactForm());
+		this.events.on('card:select', (item: ProductData) => this.showCard(item));
+		this.events.on('order:open', () => this.displayOrderForm());
+		this.events.on('card:toBasket', (item: ProductData) =>
+			this.handleBasketToggle(item)
+		);
+		this.events.on('contactsOrderFormErrors:change', this.modifyContactForm());
+		this.events.on(/^order\..*:change/, this.modifyOrderField.bind(this));
 		this.events.on(
 			'order.payment:change',
 			({ field, value }: { field: keyof DeliveryInfo; value: string }) => {
@@ -96,27 +88,19 @@ export class App {
 				console.log(`Выбран способ оплаты: ${value}`);
 			}
 		);
-		this.events.on('basket:change', this.refreshBasketView.bind(this));
-		this.events.on('card:select', (item: ProductData) => this.showCard(item));
-		this.events.on(/^order\..*:change/, this.modifyOrderField.bind(this));
-		this.events.on('card:toBasket', (item: ProductData) =>
-			this.handleBasketToggle(item)
-		);
-		this.events.on('basket:open', () => this.displayBasket());
-		this.events.on('order:open', () => this.displayOrderForm());
-		this.events.on('order:submit', () => this.displayContactForm());
-		this.events.on('contacts:submit', () => this.processOrderSubmission());
-
-		this.events.on('orderOrderFormErrors:change', this.modifyOrderForm());
-		this.events.on('contactsOrderFormErrors:change', this.modifyContactForm());
 		this.events.on(/^contacts\..*:change/, this.modifyContactField.bind(this));
+		this.events.on('orderOrderFormErrors:change', this.modifyOrderForm());
+		this.events.onAll(({ eventName, data }) => console.log(eventName, data));
+		this.events.on('modal:closed', () => {
+			this.appData.order.address = '';
+			this.appData.order.payment = '';
+			this.appData.order.email = '';
+			this.appData.order.address = '';
+			this.order.reset();
+			this.contacts.reset();
+		});
 	}
 
-	private refreshCatalog(): void {
-		this.page.catalog = this.appData.catalog.map((item) =>
-			this.createCatalogCard(item)
-		);
-	}
 	private fetchProductData(): void {
 		this.api
 			.fetchProductList()
@@ -125,7 +109,70 @@ export class App {
 			})
 			.catch((error) => console.error('Error loading product list:', error));
 	}
+	private createSuccessModalInstance() {
+		return new Success(
+			cloneTemplate(ensureElement<HTMLTemplateElement>('#success')),
+			{
+				onSuccessClick: () => {
+					this.appData.orderReset();
 
+					this.modal.closeModal();
+					this.appData.contactReset();
+					this.events.emit('basket:change');
+					this.order.render({
+						payment: '',
+						address: '',
+						valid: false,
+						errors: {},
+					});
+					this.contacts.render({
+						email: '',
+						phone: '',
+						valid: false,
+						errors: {},
+					});
+				},
+			}
+		);
+	}
+	private handleBasketToggle(item: ProductData): void {
+		this.appData.basket.includes(item.id)
+			? this.appData.removeBasket(item.id)
+			: this.appData.addBasket(item.id);
+		this.events.emit('basket:change');
+	}
+	private cards: Record<string, Card> = {};
+
+	private updateCard(itemId: string): void {
+		const card = this.cards[itemId];
+		if (!card) return;
+		card.updateButtonState(this.appData.basket.includes(itemId));
+	}
+
+	private refreshBasketView(): void {
+		this.updateBasketCounter();
+		this.updateBasket();
+		this.appData.basket.forEach((id) => this.updateCard(id));
+	}
+	private updateBasket(): void {
+		const basketItems = this.appData
+			.getBasketProducts()
+			.map((item, index) => this.createBasketItem(item, index));
+		this.basket.render({ items: basketItems, price: this.appData.getTotal() });
+	}
+	private createBasketItem(product: ProductData, index: number): HTMLElement {
+		const card = new Card(
+			cloneTemplate(ensureElement<HTMLTemplateElement>('#card-basket')),
+			product,
+			{
+				onRemoveFromBasket: () => this.removeItemFromBasket(product.id),
+			}
+		);
+
+		card.setIndex(index);
+
+		return card.getContainer();
+	}
 	private createCatalogCard(item: ProductData): HTMLElement {
 		const card = new Card(
 			cloneTemplate(ensureElement<HTMLTemplateElement>('#card-catalog')),
@@ -140,77 +187,20 @@ export class App {
 		return card.getContainer();
 	}
 
-	private handleBasketToggle(item: ProductData): void {
-		this.appData.basket.includes(item.id)
-			? this.appData.removeBasket(item.id)
-			: this.appData.addBasket(item.id);
-		this.events.emit('basket:change');
-	}
-
-	private updateCard(itemId: string): void {
-		const cardElement = document.querySelector(`[data-id="${itemId}"]`);
-		if (!cardElement) return;
-
-		const button =
-			cardElement.querySelector<HTMLButtonElement>('.card__button');
-		const isInBasket = this.appData.basket.includes(itemId);
-		button && (button.textContent = isInBasket ? 'Убрать' : 'Купить');
+	private refreshCatalog(): void {
+		this.page.catalog = this.appData.catalog.map((item) =>
+			this.createCatalogCard(item)
+		);
 	}
 	private updateBasketCounter(): void {
 		this.page.counter = this.appData.basket.length;
 	}
-	private updateBasket(): void {
-		const basketItems = this.appData
-			.getBasketProducts()
-			.map((item) => this.createBasketItem(item));
-		this.basket.render({ items: basketItems, price: this.appData.getTotal() });
-	}
-	private refreshBasketView(): void {
-		this.updateBasketCounter();
-		this.updateBasket();
-		this.appData.basket.forEach((id) => this.updateCard(id));
-	}
 
-	private removeItemFromBasket(itemId: string): void {
-		this.appData.removeBasket(itemId);
-		this.refreshBasketView();
-	}
-	private createBasketItem(product: ProductData): HTMLElement {
-		const cardElement = new Card(
-			cloneTemplate(ensureElement<HTMLTemplateElement>('#card-basket')),
-			product,
-			{
-				onRemoveFromBasket: () => this.removeItemFromBasket(product.id),
-			}
-		).getContainer();
+	//
 
-		const deleteButton = cardElement.querySelector<HTMLButtonElement>(
-			'.basket__item-delete'
-		);
-		deleteButton?.addEventListener('click', () =>
-			this.removeItemFromBasket(product.id)
-		);
-		return cardElement;
-	}
-	private modifyContactField({
-		field,
-		value,
-	}: {
-		field: keyof ContactInfo;
-		value: string;
-	}): void {
-		this.appData.setContactField(field, value);
-	}
-
-	private displayOrderForm(): void {
-		this.modal.render({
-			content: this.order.render({
-				payment: '',
-				address: '',
-				valid: false,
-				errors: {},
-			}),
-		});
+	private displayBasket(): void {
+		this.modal.render({ content: this.basket.getContainer() });
+		this.modal.openModal();
 	}
 	private showCard(item: ProductData): void {
 		const card = new Card(
@@ -225,6 +215,7 @@ export class App {
 		this.modal.openModal();
 		card.updateButtonState(this.appData.basket.includes(item.id));
 	}
+
 	private displayContactForm(): void {
 		this.modal.render({
 			content: this.contacts.render({
@@ -235,16 +226,17 @@ export class App {
 			}),
 		});
 	}
-	private modifyContactForm(): (errors: Partial<ContactInfo>) => void {
-		return (errors: Partial<ContactInfo>): void => {
-			this.contacts.errors = errors;
-			this.contacts.valid = Object.keys(errors).length === 0;
-		};
+	private displayOrderForm(): void {
+		this.modal.render({
+			content: this.order.render({
+				payment: '',
+				address: '',
+				valid: false,
+				errors: {},
+			}),
+		});
 	}
-	private displayBasket(): void {
-		this.modal.render({ content: this.basket.getContainer() });
-		this.modal.openModal();
-	}
+
 	private modifyOrderField({
 		field,
 		value,
@@ -256,18 +248,15 @@ export class App {
 		console.log(field);
 		console.log(value);
 	}
-
-	private modifyOrderForm(): (errors: Partial<DeliveryInfo>) => void {
-		return (errors: Partial<DeliveryInfo>): void => {
-			this.order.errors = errors;
-			this.order.valid = Object.keys(errors).length === 0;
-		};
+	private removeItemFromBasket(itemId: string): void {
+		this.appData.removeBasket(itemId);
+		this.refreshBasketView();
 	}
+
 	private processOrderSubmission(): void {
 		const { payment } = this.appData.order;
-		if (!payment) {
-			return;
-		}
+		if (!payment) return;
+
 		this.api
 			.processOrderSubmission({
 				...this.appData.order,
@@ -275,12 +264,40 @@ export class App {
 				items: this.appData.basket,
 			})
 			.then((res) => {
+				this.appData.clearBasket();
+				this.appData.orderReset();
+				this.order.reset();
+				this.contacts.reset();
+				this.appData.contactReset();
+				this.events.emit('basket:change');
+
+				this.events.emit('basket:change');
 				this.modal.render({
 					content: this.successModal.render({ total: res.total }),
 				});
-				this.appData.clearBasket();
-				this.events.emit('basket:change');
 			})
 			.catch(console.error);
+	}
+	private modifyContactField({
+		field,
+		value,
+	}: {
+		field: keyof ContactInfo;
+		value: string;
+	}): void {
+		this.appData.setContactField(field, value);
+	}
+
+	private modifyOrderForm(): (errors: Partial<DeliveryInfo>) => void {
+		return (errors: Partial<DeliveryInfo>): void => {
+			this.order.errors = errors;
+			this.order.valid = Object.keys(errors).length === 0;
+		};
+	}
+	private modifyContactForm(): (errors: Partial<ContactInfo>) => void {
+		return (errors: Partial<ContactInfo>): void => {
+			this.contacts.errors = errors;
+			this.contacts.valid = Object.keys(errors).length === 0;
+		};
 	}
 }

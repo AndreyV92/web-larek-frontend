@@ -2,21 +2,9 @@ export function pascalToKebab(value: string): string {
 	return value.replace(/([a-z0–9])([A-Z])/g, '$1-$2').toLowerCase();
 }
 
-export function isEmpty(value: any): boolean {
-	return value === null || value === undefined;
-}
-
-export function cloneTemplate<T extends HTMLElement>(
-	query: string | HTMLTemplateElement
-): T {
-	const template = ensureElement(query) as HTMLTemplateElement;
-	return template.content.firstElementChild.cloneNode(true) as T;
-}
-
 export type SelectorCollection<T> = string | NodeListOf<Element> | T[];
-export function isSelector(x: any): x is string {
-	return typeof x === 'string' && x.length > 1;
-}
+export type SelectorElement<T> = T | string;
+
 export function ensureAllElements<T extends HTMLElement>(
 	selectorElement: SelectorCollection<T>,
 	context: HTMLElement = document as unknown as HTMLElement
@@ -24,17 +12,29 @@ export function ensureAllElements<T extends HTMLElement>(
 	if (isSelector(selectorElement)) {
 		return Array.from(context.querySelectorAll(selectorElement)) as T[];
 	}
+
 	if (selectorElement instanceof NodeList) {
 		return Array.from(selectorElement) as T[];
 	}
+
 	if (Array.isArray(selectorElement)) {
 		return selectorElement;
 	}
+
 	throw new Error(`Unknown selector element`);
 }
-
-export type SelectorElement<T> = T | string;
-
+export function isEmpty(value: any): boolean {
+	return value === null || value === undefined;
+}
+export function isSelector(x: any): x is string {
+	return typeof x === 'string' && x.length > 1;
+}
+export function cloneTemplate<T extends HTMLElement>(
+	query: string | HTMLTemplateElement
+): T {
+	const template = ensureElement(query) as HTMLTemplateElement;
+	return template.content.firstElementChild.cloneNode(true) as T;
+}
 export function ensureElement<T extends HTMLElement>(
 	selectorElement: SelectorElement<T>,
 	context?: HTMLElement
@@ -55,19 +55,6 @@ export function ensureElement<T extends HTMLElement>(
 	throw new Error('Unknown selector element');
 }
 
-export function getObjectProperties(
-	obj: object,
-	filter?: (name: string, prop: PropertyDescriptor) => boolean
-): string[] {
-	return Object.entries(
-		Object.getOwnPropertyDescriptors(Object.getPrototypeOf(obj))
-	)
-		.filter(([name, prop]: [string, PropertyDescriptor]) =>
-			filter ? filter(name, prop) : name !== 'constructor'
-		)
-		.map(([name, prop]) => name);
-}
-
 export function bem(
 	block: string,
 	element?: string,
@@ -81,7 +68,18 @@ export function bem(
 		class: `.${name}`,
 	};
 }
-
+export function getObjectProperties(
+	obj: object,
+	filter?: (name: string, prop: PropertyDescriptor) => boolean
+): string[] {
+	return Object.entries(
+		Object.getOwnPropertyDescriptors(Object.getPrototypeOf(obj))
+	)
+		.filter(([name, prop]: [string, PropertyDescriptor]) =>
+			filter ? filter(name, prop) : name !== 'constructor'
+		)
+		.map(([name, prop]) => name);
+}
 export function setElementData<T extends Record<string, unknown> | object>(
 	el: HTMLElement,
 	data: T
@@ -89,16 +87,6 @@ export function setElementData<T extends Record<string, unknown> | object>(
 	for (const key in data) {
 		el.dataset[key] = String(data[key]);
 	}
-}
-
-
-export function isPlainObject(obj: unknown): obj is object {
-	const prototype = Object.getPrototypeOf(obj);
-	return prototype === Object.getPrototypeOf({}) || prototype === null;
-}
-
-export function isBoolean(v: unknown): v is boolean {
-	return typeof v === 'boolean';
 }
 
 export function getElementData<T extends Record<string, unknown>>(
@@ -110,6 +98,14 @@ export function getElementData<T extends Record<string, unknown>>(
 		data[key as keyof T] = scheme[key](el.dataset[key]);
 	}
 	return data as T;
+}
+
+export function isBoolean(v: unknown): v is boolean {
+	return typeof v === 'boolean';
+}
+export function isPlainObject(obj: unknown): obj is object {
+	const prototype = Object.getPrototypeOf(obj);
+	return prototype === Object.getPrototypeOf({}) || prototype === null;
 }
 
 export function createElement<T extends HTMLElement>(

@@ -1,8 +1,8 @@
 import { ensureElement } from './../utils/utils';
 
-import { Component } from './base/component';
-
 import { SuccessResponse } from '../types';
+
+import { Component } from './base/component';
 
 interface SuccessResponseActions {
 	onSuccessClick?: () => void;
@@ -19,20 +19,21 @@ export class Success extends Component<SuccessResponse> {
 	) {
 		super(containerElement);
 
-		this.closeButton = ensureElement<HTMLButtonElement>(
-			'.order-success__close',
-			containerElement
-		);
 		this.totalDisplay = ensureElement<HTMLElement>(
 			'.order-success__description',
 			containerElement
 		);
-		this.actions?.onSuccessClick &&
-			this.closeButton.addEventListener('click', this.actions.onSuccessClick);
+		this.closeButton = ensureElement<HTMLButtonElement>(
+			'.order-success__close',
+			containerElement
+		);
+		this.closeButton.addEventListener('click', () => {
+			this.actions?.onSuccessClick?.();
+		});
 	}
 
 	set totalAmount(total: number) {
-		this.totalDisplay.textContent = `Списано ${total} синапсов`;
+		this.setText(this.totalDisplay, `Списано ${total} синапсов`);
 	}
 
 	render(responseData: SuccessResponse): HTMLElement {
