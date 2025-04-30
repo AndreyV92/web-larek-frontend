@@ -256,8 +256,8 @@ yarn build
 - `orderError: OrderFormErrors`
 
 **Методы:**
-- `addBasket(productId)`
-- `removeBasket(productId)`
+- `addToBasket(productId)`
+- `removeFromBasket(productId)`
 - `clearBasket()`
 - `getBasketProducts()`
 - `getTotal()`

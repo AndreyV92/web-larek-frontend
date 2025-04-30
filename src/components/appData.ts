@@ -44,7 +44,7 @@ export class AppState extends Model<AppStateType> {
 		this.updateBasket();
 	}
 
-	addBasket(productId: string): void {
+	addToBasket(productId: string): void {
 		if (!this.basket.includes(productId)) {
 			this.basket.push(productId);
 			this.updateBasket();
@@ -92,7 +92,7 @@ export class AppState extends Model<AppStateType> {
 		this.events.emit('contactsOrderFormErrors:change', errors);
 		return Object.keys(errors).length === 0;
 	}
-	removeBasket(productId: string): void {
+	removeFromBasket(productId: string): void {
 		const index = this.basket.indexOf(productId);
 		if (index !== -1) {
 			this.basket.splice(index, 1);

@@ -137,9 +137,8 @@ export class App {
 	}
 	private handleBasketToggle(item: ProductData): void {
 		this.appData.basket.includes(item.id)
-			? this.appData.removeBasket(item.id)
-			: this.appData.addBasket(item.id);
-		this.events.emit('basket:change');
+			? this.appData.removeFromBasket(item.id)
+			: this.appData.addToBasket(item.id);
 	}
 	private cards: Record<string, Card> = {};
 
@@ -249,7 +248,7 @@ export class App {
 		console.log(value);
 	}
 	private removeItemFromBasket(itemId: string): void {
-		this.appData.removeBasket(itemId);
+		this.appData.removeFromBasket(itemId);
 		this.refreshBasketView();
 	}
 
@@ -269,9 +268,6 @@ export class App {
 				this.order.reset();
 				this.contacts.reset();
 				this.appData.contactReset();
-				this.events.emit('basket:change');
-
-				this.events.emit('basket:change');
 				this.modal.render({
 					content: this.successModal.render({ total: res.total }),
 				});
